@@ -2,9 +2,48 @@
 #include <fstream>
 #include <vector>
 #include <string>
-#include <map>
 #include <set>
 #include <algorithm>
+#include <omp.h>
+
+const int32_t IMPL = 1;
+
+struct MaxSum
+{
+    int32_t maxSum;
+    int32_t startIdx;
+    int32_t endIdx;
+
+    MaxSum(): maxSum(-1), startIdx(-1), endIdx(-1) {}
+    MaxSum(int32_t _maxSum, int32_t _startIdx, int32_t _endIdx): maxSum(maxSum), startIdx(_startIdx), endIdx(_endIdx)
+    {
+    }
+
+    //
+    // Required for the reduction step in the parallelization.
+    bool operator<(MaxSum& other) const
+    {
+        // Required when we are reducing results in Parallel Scan and
+        // there are two threads that found the sequence with the maximal number of candies,
+        // and one is unitialized, so we distinguish between one that finished and one that did not.
+        if (maxSum == other.maxSum)
+        {
+            return startIdx < other.startIdx && endIdx < other.endIdx;
+        }
+        return maxSum < other.maxSum;
+    }
+};
+
+uint32_t getNumberOfThreads(void)
+{
+    uint32_t numThreads;
+    #pragma omp parallel
+    {
+    #pragma omp single
+        numThreads = omp_get_num_threads();
+    }
+    return numThreads;
+}
 
 void readFile(int32_t& nCandies, std::vector<int32_t>& vHomeCandies)
 {
@@ -44,13 +83,10 @@ void computePrefixSums(const std::vector<int32_t>& vHomeCandies, std::vector<int
 }
 
 void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, const std::vector<int32_t>& vPrefSum, int32_t& nCandies,
-                   int32_t& startIdx, int32_t& endIdx, int32_t& maxSum)
+                   MaxSum& maxSum)
 {
     const uint32_t nHomes = vHomeCandies.size();
-
-    maxSum = -1;
-    startIdx = -1;
-    endIdx = -1;
+    maxSum = MaxSum();
 
     for (int32_t idx = 1; idx <= nHomes; idx ++)
     {
@@ -59,14 +95,14 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
                                             vPrefSum.begin() + idx, diff);
         if (itSearch != vPrefSum.end())
         {
-            if ((vPrefSum[idx] - *itSearch) > maxSum)
+            if ((vPrefSum[idx] - *itSearch) > maxSum.maxSum)
             {
-                maxSum = vPrefSum[idx] - *itSearch;
-                startIdx = std::distance(vPrefSum.begin(), itSearch) + 1;
-                endIdx = idx;
+                maxSum.maxSum = vPrefSum[idx] - *itSearch;
+                maxSum.startIdx = std::distance(vPrefSum.begin(), itSearch) + 1;
+                maxSum.endIdx = idx;
             }
         }
-        if (maxSum == nCandies)
+        if (maxSum.maxSum == nCandies)
         {
             break;
         }
@@ -74,34 +110,43 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
 }
 
 void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const std::vector<int32_t>& vPrefSum, int32_t& nCandies,
-                                  int32_t& startIdx, int32_t& endIdx, int32_t& maxSum)
+                                  MaxSum& maxSum)
 {
     const uint32_t nHomes = vHomeCandies.size();
+    bool found = false;
+    std::vector<MaxSum> vMaxSums;
 
-    maxSum = -1;
-    startIdx = -1;
-    endIdx = -1;
+    uint32_t numThreads = omp_get_num_procs();
+    omp_set_num_threads(numThreads);
 
+    vMaxSums.resize(numThreads);
     #pragma  omp parallel for
     for (int32_t idx = 1; idx <= nHomes; idx ++)
     {
-        int32_t diff = std::max(vPrefSum[idx] - nCandies, 0);
-        auto itSearch = std::lower_bound(vPrefSum.begin(),
-                                         vPrefSum.begin() + idx, diff);
-        if (itSearch != vPrefSum.end())
+        if (!found)
         {
-            if ((vPrefSum[idx] - *itSearch) > maxSum)
+            uint32_t threadId = omp_get_thread_num();
+            int32_t diff = std::max(vPrefSum[idx] - nCandies, 0);
+            auto itSearch = std::lower_bound(vPrefSum.begin(),
+                                             vPrefSum.begin() + idx, diff);
+            if (itSearch != vPrefSum.end())
             {
-                maxSum = vPrefSum[idx] - *itSearch;
-                startIdx = std::distance(vPrefSum.begin(), itSearch) + 1;
-                endIdx = idx;
+                if ((vPrefSum[idx] - *itSearch) > maxSum.maxSum)
+                {
+                    vMaxSums[threadId].maxSum = vPrefSum[idx] - *itSearch;
+                    vMaxSums[threadId].startIdx = std::distance(vPrefSum.begin(), itSearch) + 1;
+                    vMaxSums[threadId].endIdx = idx;
+                }
+            }
+            if (vMaxSums[threadId].maxSum == nCandies)
+            {
+                found = true;
             }
         }
-        if (maxSum == nCandies)
-        {
-            break;
-        }
     }
+
+    auto itSol = std::max_element(vMaxSums.begin(), vMaxSums.end());
+    maxSum = *itSol;
 }
 
 
@@ -109,18 +154,27 @@ int main() {
     int32_t nCandies;
     std::vector<int32_t> vHomeCandies;
     std::vector<int32_t> vPrefSum;
-    int32_t maxSum;
-    int32_t startIdx;
-    int32_t endIdx;
+    MaxSum maxSum;;
 
     readFile(nCandies, vHomeCandies);
     computePrefixSums(vHomeCandies, vPrefSum);
-    computeMaxSequenceSequential(vHomeCandies, vPrefSum, nCandies, startIdx, endIdx, maxSum);
-
-    if (maxSum != -1)
+    if (IMPL == 0)
     {
-        std::cout << "Start at home " << startIdx << " and go to home "
-        << endIdx << " getting " << maxSum << " pieces of candy" << std::endl;
+        computeMaxSequenceSequential(vHomeCandies, vPrefSum, nCandies, maxSum);
+    }
+    else if (IMPL == 1)
+    {
+        computeMaxSequenceParallel(vHomeCandies, vPrefSum, nCandies, maxSum);
+    }
+    else if (IMPL == 2)
+    {
+
+    }
+
+    if (maxSum.maxSum != -1)
+    {
+        std::cout << "Start at home " << maxSum.startIdx << " and go to home "
+        << maxSum.endIdx << " getting " << maxSum.maxSum << " pieces of candy" << std::endl;
     }
     else
     {
