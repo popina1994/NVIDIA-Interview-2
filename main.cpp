@@ -5,8 +5,11 @@
 #include <set>
 #include <algorithm>
 #include <omp.h>
+#include <cassert>
 
-const int32_t IMPL = 1;
+#define EXPECT_EQ(A, B) assert(A == B);
+
+
 
 struct MaxSum
 {
@@ -45,9 +48,8 @@ uint32_t getNumberOfThreads(void)
     return numThreads;
 }
 
-void readFile(int32_t& nCandies, std::vector<int32_t>& vHomeCandies)
+void readFile(int32_t& nCandies, std::vector<int32_t>& vHomeCandies, const std::string& fileInputName)
 {
-    const std::string fileInputName = "input.txt";
     int32_t nHomes;
 
     std::ifstream fInput;
@@ -124,6 +126,7 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
     #pragma  omp parallel for
     for (int32_t idx = 1; idx <= nHomes; idx ++)
     {
+
         if (!found)
         {
             uint32_t threadId = omp_get_thread_num();
@@ -133,7 +136,7 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
             auto itSearch = std::lower_bound(itBegin,itEnd, diff);
             if (itSearch != itEnd)
             {
-                if ((vPrefSum[idx] - *itSearch) > maxSum.maxSum)
+                if ((vPrefSum[idx] - *itSearch) > vMaxSums[threadId].maxSum)
                 {
                     vMaxSums[threadId].maxSum = vPrefSum[idx] - *itSearch;
                     vMaxSums[threadId].startIdx = std::distance(itBegin, itSearch) + 1;
@@ -151,24 +154,23 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
     maxSum = *itSol;
 }
 
-
-int main() {
+void checkHomes(const std::string& fileInputName, MaxSum& maxSum, int32_t impl)
+{
     int32_t nCandies;
     std::vector<int32_t> vHomeCandies;
     std::vector<int32_t> vPrefSum;
-    MaxSum maxSum;;
 
-    readFile(nCandies, vHomeCandies);
+    readFile(nCandies, vHomeCandies, fileInputName);
     computePrefixSums(vHomeCandies, vPrefSum);
-    if (IMPL == 0)
+    if (impl == 0)
     {
         computeMaxSequenceSequential(vHomeCandies, vPrefSum, nCandies, maxSum);
     }
-    else if (IMPL == 1)
+    else if (impl == 1)
     {
         computeMaxSequenceParallel(vHomeCandies, vPrefSum, nCandies, maxSum);
     }
-    else if (IMPL == 2)
+    else if (impl == 2)
     {
 
     }
@@ -182,5 +184,67 @@ int main() {
     {
         std::cout << "Don't go here" << std::endl;
     }
+}
+
+void defaultTest()
+{
+    const std::string fileInputName = "tests/input_default.txt";
+    MaxSum maxSum;
+    maxSum = {-1, -1, -1};
+    checkHomes(fileInputName, maxSum, 0);
+    EXPECT_EQ(maxSum.maxSum, 10);
+    EXPECT_EQ(maxSum.startIdx, 2);
+    EXPECT_EQ(maxSum.endIdx, 5);
+
+    checkHomes(fileInputName, maxSum, 1);
+    EXPECT_EQ(maxSum.maxSum, 10);
+    EXPECT_EQ(maxSum.startIdx, 2);
+    EXPECT_EQ(maxSum.endIdx, 5);
+}
+
+
+void notEnterTest()
+{
+    const std::string fileInputName = "tests/input_not_enter.txt";
+    MaxSum maxSum;
+    maxSum = {-1, -1, -1};
+    checkHomes(fileInputName, maxSum, 0);
+    EXPECT_EQ(maxSum.maxSum, -1);
+    EXPECT_EQ(maxSum.startIdx, -1);
+    EXPECT_EQ(maxSum.endIdx, -1);
+
+    checkHomes(fileInputName, maxSum, 1);
+    EXPECT_EQ(maxSum.maxSum, -1);
+    EXPECT_EQ(maxSum.startIdx, -1);
+    EXPECT_EQ(maxSum.endIdx, -1);
+}
+
+void altTest(void)
+{
+    const std::string fileInputName = "tests/input_alt.txt";
+    MaxSum maxSum;
+    maxSum = {-1, -1, -1};
+    checkHomes(fileInputName, maxSum, 0);
+    EXPECT_EQ(maxSum.maxSum, 9);
+    EXPECT_EQ(maxSum.startIdx, 8);
+    EXPECT_EQ(maxSum.endIdx, 10);
+
+    checkHomes(fileInputName, maxSum, 1);
+    EXPECT_EQ(maxSum.maxSum, 9);
+    EXPECT_EQ(maxSum.startIdx, 8);
+    EXPECT_EQ(maxSum.endIdx, 10);
+}
+
+
+void runTests()
+{
+    defaultTest();
+    notEnterTest();
+    altTest();
+}
+
+int main()
+{
+    runTests();
     return 0;
 }
