@@ -91,14 +91,15 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
     for (int32_t idx = 1; idx <= nHomes; idx ++)
     {
         int32_t diff = std::max(vPrefSum[idx] - nCandies, 0);
-        auto itSearch = std::lower_bound(vPrefSum.begin(),
-                                            vPrefSum.begin() + idx, diff);
-        if (itSearch != vPrefSum.end())
+        const auto itBegin = vPrefSum.begin();
+        const auto itEnd = vPrefSum.begin() + idx;
+        auto itSearch = std::lower_bound(itBegin,itEnd, diff);
+        if (itSearch != itEnd)
         {
             if ((vPrefSum[idx] - *itSearch) > maxSum.maxSum)
             {
                 maxSum.maxSum = vPrefSum[idx] - *itSearch;
-                maxSum.startIdx = std::distance(vPrefSum.begin(), itSearch) + 1;
+                maxSum.startIdx = std::distance(itBegin, itSearch) + 1;
                 maxSum.endIdx = idx;
             }
         }
@@ -127,14 +128,15 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
         {
             uint32_t threadId = omp_get_thread_num();
             int32_t diff = std::max(vPrefSum[idx] - nCandies, 0);
-            auto itSearch = std::lower_bound(vPrefSum.begin(),
-                                             vPrefSum.begin() + idx, diff);
-            if (itSearch != vPrefSum.end())
+            const auto itBegin = vPrefSum.begin();
+            const auto itEnd = vPrefSum.begin() + idx;
+            auto itSearch = std::lower_bound(itBegin,itEnd, diff);
+            if (itSearch != itEnd)
             {
                 if ((vPrefSum[idx] - *itSearch) > maxSum.maxSum)
                 {
                     vMaxSums[threadId].maxSum = vPrefSum[idx] - *itSearch;
-                    vMaxSums[threadId].startIdx = std::distance(vPrefSum.begin(), itSearch) + 1;
+                    vMaxSums[threadId].startIdx = std::distance(itBegin, itSearch) + 1;
                     vMaxSums[threadId].endIdx = idx;
                 }
             }
