@@ -212,24 +212,31 @@ void computeMaxSequenceWindowApproach(const std::vector<int32_t>& vHomeCandies, 
 }
 
 
-void checkHomes(const std::string& fileInputName, MaxSum& maxSum, int32_t impl)
+void checkHomes(const std::string& fileInputName, MaxSum& maxSum, int32_t implAlg, int32_t prefSumImpl)
 {
     int32_t nCandies;
     std::vector<int32_t> vHomeCandies;
     std::vector<int32_t> vPrefSum;
 
     readFile(nCandies, vHomeCandies, fileInputName);
-    computePrefixSumsParallel(vHomeCandies, vPrefSum);
-    //computePrefixSums(vHomeCandies, vPrefSum);
-    if (impl == 0)
+    if (prefSumImpl == 0)
+    {
+        computePrefixSums(vHomeCandies, vPrefSum);
+    }
+    else
+    {
+        computePrefixSumsParallel(vHomeCandies, vPrefSum);
+    }
+
+    if (implAlg == 0)
     {
         computeMaxSequenceSequential(vHomeCandies, vPrefSum, nCandies, maxSum);
     }
-    else if (impl == 1)
+    else if (implAlg == 1)
     {
         computeMaxSequenceParallel(vHomeCandies, vPrefSum, nCandies, maxSum);
     }
-    else if (impl == 2)
+    else if (implAlg == 2)
     {
         computeMaxSequenceWindowApproach(vHomeCandies, vPrefSum, nCandies, maxSum);
     }
@@ -250,17 +257,17 @@ void defaultTest()
     const std::string fileInputName = "tests/input_default.txt";
     MaxSum maxSum;
     maxSum = {-1, -1, -1};
-    checkHomes(fileInputName, maxSum, 0);
+    checkHomes(fileInputName, maxSum, 0, 1);
     EXPECT_EQ(maxSum.maxSum, 10);
     EXPECT_EQ(maxSum.startIdx, 2);
     EXPECT_EQ(maxSum.endIdx, 5);
 
-    checkHomes(fileInputName, maxSum, 1);
+    checkHomes(fileInputName, maxSum, 1, 1);
     EXPECT_EQ(maxSum.maxSum, 10);
     EXPECT_EQ(maxSum.startIdx, 2);
     EXPECT_EQ(maxSum.endIdx, 5);
 
-    checkHomes(fileInputName, maxSum, 2);
+    checkHomes(fileInputName, maxSum, 2, 1);
     EXPECT_EQ(maxSum.maxSum, 10);
     EXPECT_EQ(maxSum.startIdx, 2);
     EXPECT_EQ(maxSum.endIdx, 5);
@@ -272,17 +279,17 @@ void notEnterTest()
     const std::string fileInputName = "tests/input_not_enter.txt";
     MaxSum maxSum;
     maxSum = {-1, -1, -1};
-    checkHomes(fileInputName, maxSum, 0);
+    checkHomes(fileInputName, maxSum, 0, 1);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
 
-    checkHomes(fileInputName, maxSum, 1);
+    checkHomes(fileInputName, maxSum, 1, 1);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
 
-    checkHomes(fileInputName, maxSum, 2);
+    checkHomes(fileInputName, maxSum, 2, 1);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
@@ -294,17 +301,17 @@ void altTest(void)
     const std::string fileInputName = "tests/input_alt.txt";
     MaxSum maxSum;
     maxSum = {-1, -1, -1};
-    checkHomes(fileInputName, maxSum, 0);
+    checkHomes(fileInputName, maxSum, 0, 1);
     EXPECT_EQ(maxSum.maxSum, 9);
     EXPECT_EQ(maxSum.startIdx, 8);
     EXPECT_EQ(maxSum.endIdx, 10);
 
-    checkHomes(fileInputName, maxSum, 1);
+    checkHomes(fileInputName, maxSum, 1, 1);
     EXPECT_EQ(maxSum.maxSum, 9);
     EXPECT_EQ(maxSum.startIdx, 8);
     EXPECT_EQ(maxSum.endIdx, 10);
 
-    checkHomes(fileInputName, maxSum, 2);
+    checkHomes(fileInputName, maxSum, 2, 1);
     EXPECT_EQ(maxSum.maxSum, 9);
     EXPECT_EQ(maxSum.startIdx, 8);
     EXPECT_EQ(maxSum.endIdx, 10);
@@ -315,17 +322,17 @@ void zeroTest(void)
     const std::string fileInputName = "tests/input_zero.txt";
     MaxSum maxSum;
     maxSum = {-1, -1, -1};
-    checkHomes(fileInputName, maxSum, 0);
+    checkHomes(fileInputName, maxSum, 0, 1);
     EXPECT_EQ(maxSum.maxSum, 0);
     EXPECT_EQ(maxSum.startIdx, 5);
     EXPECT_EQ(maxSum.endIdx, 5);
 
-    checkHomes(fileInputName, maxSum, 1);
+    checkHomes(fileInputName, maxSum, 1, 1);
     EXPECT_EQ(maxSum.maxSum, 0);
     EXPECT_EQ(maxSum.startIdx, 5);
     EXPECT_EQ(maxSum.endIdx, 5);
 
-    checkHomes(fileInputName, maxSum, 2);
+    checkHomes(fileInputName, maxSum, 2, 1);
     EXPECT_EQ(maxSum.maxSum, 0);
     EXPECT_EQ(maxSum.startIdx, 5);
     EXPECT_EQ(maxSum.endIdx, 5);
