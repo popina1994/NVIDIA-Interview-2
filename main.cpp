@@ -9,8 +9,6 @@
 
 #define EXPECT_EQ(A, B) assert(A == B);
 
-
-
 struct MaxSum
 {
     int32_t maxSum;
@@ -31,22 +29,11 @@ struct MaxSum
         // and one is unitialized, so we distinguish between one that finished and one that did not.
         if (maxSum == other.maxSum)
         {
-            return startIdx < other.startIdx && endIdx < other.endIdx;
+            return startIdx > other.startIdx;
         }
         return maxSum < other.maxSum;
     }
 };
-
-uint32_t getNumberOfThreads(void)
-{
-    uint32_t numThreads;
-    #pragma omp parallel
-    {
-    #pragma omp single
-        numThreads = omp_get_num_threads();
-    }
-    return numThreads;
-}
 
 void readFile(int32_t& nCandies, std::vector<int32_t>& vHomeCandies, const std::string& fileInputName)
 {
@@ -98,9 +85,10 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
         auto itSearch = std::lower_bound(itBegin,itEnd, diff);
         if (itSearch != itEnd)
         {
-            if ((vPrefSum[idx] - *itSearch) > maxSum.maxSum)
+            int32_t curMaxSum = vPrefSum[idx] - *itSearch;
+            if (curMaxSum > maxSum.maxSum)
             {
-                maxSum.maxSum = vPrefSum[idx] - *itSearch;
+                maxSum.maxSum = curMaxSum;
                 maxSum.startIdx = std::distance(itBegin, itSearch) + 1;
                 maxSum.endIdx = idx;
             }
@@ -121,12 +109,11 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
 
     uint32_t numThreads = omp_get_num_procs();
     omp_set_num_threads(numThreads);
-
     vMaxSums.resize(numThreads);
+
     #pragma  omp parallel for
     for (int32_t idx = 1; idx <= nHomes; idx ++)
     {
-
         if (!found)
         {
             uint32_t threadId = omp_get_thread_num();
@@ -136,14 +123,15 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
             auto itSearch = std::lower_bound(itBegin,itEnd, diff);
             if (itSearch != itEnd)
             {
-                if ((vPrefSum[idx] - *itSearch) > vMaxSums[threadId].maxSum)
+                int32_t curMaxSum = vPrefSum[idx] - *itSearch;
+                if (curMaxSum > vMaxSums[threadId].maxSum)
                 {
-                    vMaxSums[threadId].maxSum = vPrefSum[idx] - *itSearch;
+                    vMaxSums[threadId].maxSum = curMaxSum;
                     vMaxSums[threadId].startIdx = std::distance(itBegin, itSearch) + 1;
                     vMaxSums[threadId].endIdx = idx;
                 }
             }
-            if (vMaxSums[threadId].maxSum == nCandies)
+            if ((threadId == 0) && (vMaxSums[threadId].maxSum == nCandies))
             {
                 found = true;
             }
@@ -235,12 +223,29 @@ void altTest(void)
     EXPECT_EQ(maxSum.endIdx, 10);
 }
 
+void zeroTest(void)
+{
+    const std::string fileInputName = "tests/input_zero.txt";
+    MaxSum maxSum;
+    maxSum = {-1, -1, -1};
+    checkHomes(fileInputName, maxSum, 0);
+    EXPECT_EQ(maxSum.maxSum, 0);
+    EXPECT_EQ(maxSum.startIdx, 5);
+    EXPECT_EQ(maxSum.endIdx, 5);
+
+    checkHomes(fileInputName, maxSum, 1);
+    EXPECT_EQ(maxSum.maxSum, 0);
+    EXPECT_EQ(maxSum.startIdx, 5);
+    EXPECT_EQ(maxSum.endIdx, 5);
+}
+
 
 void runTests()
 {
     defaultTest();
     notEnterTest();
     altTest();
+    zeroTest();
 }
 
 int main()
