@@ -71,6 +71,43 @@ void computePrefixSums(const std::vector<int32_t>& vHomeCandies, std::vector<int
     }
 }
 
+void computePrefixSumsParallel(const std::vector<int32_t>& vHomeCandies, std::vector<int32_t>& vPrefSum)
+{
+    const uint32_t nHomes = vHomeCandies.size();
+    std::vector<int32_t> vSums;
+    vPrefSum.resize(nHomes+1);
+    int32_t curSum = 0;
+    vPrefSum[0] = 0;
+
+    uint32_t numThreads = omp_get_num_procs();
+    omp_set_num_threads(numThreads);
+    vSums.resize(numThreads);
+
+    #pragma  omp parallel for
+    for (uint32_t idx = 0; idx < nHomes; idx++)
+    {
+        uint32_t threadId = omp_get_thread_num();
+        vSums[threadId] += vHomeCandies[idx];
+        vPrefSum[idx+1] = vSums[threadId];
+    }
+
+    for (uint32_t idx = 1; idx < numThreads; idx++)
+    {
+        vSums[idx] += vSums[idx-1];
+    }
+
+    #pragma  omp parallel for
+    for (uint32_t idx = 0; idx < nHomes; idx++)
+    {
+        uint32_t threadId = omp_get_thread_num();
+        if (threadId > 0)
+        {
+            vPrefSum[idx+1] += vSums[threadId-1];
+        }
+    }
+}
+
+
 void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, const std::vector<int32_t>& vPrefSum, int32_t& nCandies,
                    MaxSum& maxSum)
 {
@@ -182,7 +219,8 @@ void checkHomes(const std::string& fileInputName, MaxSum& maxSum, int32_t impl)
     std::vector<int32_t> vPrefSum;
 
     readFile(nCandies, vHomeCandies, fileInputName);
-    computePrefixSums(vHomeCandies, vPrefSum);
+    computePrefixSumsParallel(vHomeCandies, vPrefSum);
+    //computePrefixSums(vHomeCandies, vPrefSum);
     if (impl == 0)
     {
         computeMaxSequenceSequential(vHomeCandies, vPrefSum, nCandies, maxSum);
