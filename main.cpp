@@ -142,6 +142,39 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
     maxSum = *itSol;
 }
 
+
+void computeMaxSequenceWindowApproach(const std::vector<int32_t>& vHomeCandies, const std::vector<int32_t>& vPrefSum, int32_t& nCandies,
+                                  MaxSum& maxSum)
+{
+    const uint32_t nHomes = vHomeCandies.size();
+    maxSum = MaxSum();
+    int32_t startIdx = 0;
+
+    for (int32_t endIdx = 1; endIdx <= nHomes; endIdx ++)
+    {
+        while (vPrefSum[endIdx]  - vPrefSum[startIdx] > nCandies)
+        {
+            startIdx++;
+        }
+        if (endIdx == startIdx)
+        {
+            continue;
+        }
+        int32_t curMaxSum = vPrefSum[endIdx] - vPrefSum[startIdx];
+        if (curMaxSum > maxSum.maxSum)
+        {
+            maxSum.maxSum = curMaxSum;
+            maxSum.startIdx = startIdx+1;
+            maxSum.endIdx = endIdx;
+        }
+        if (maxSum.maxSum == nCandies)
+        {
+            break;
+        }
+    }
+}
+
+
 void checkHomes(const std::string& fileInputName, MaxSum& maxSum, int32_t impl)
 {
     int32_t nCandies;
@@ -160,7 +193,7 @@ void checkHomes(const std::string& fileInputName, MaxSum& maxSum, int32_t impl)
     }
     else if (impl == 2)
     {
-
+        computeMaxSequenceWindowApproach(vHomeCandies, vPrefSum, nCandies, maxSum);
     }
 
     if (maxSum.maxSum != -1)
@@ -188,6 +221,11 @@ void defaultTest()
     EXPECT_EQ(maxSum.maxSum, 10);
     EXPECT_EQ(maxSum.startIdx, 2);
     EXPECT_EQ(maxSum.endIdx, 5);
+
+    checkHomes(fileInputName, maxSum, 2);
+    EXPECT_EQ(maxSum.maxSum, 10);
+    EXPECT_EQ(maxSum.startIdx, 2);
+    EXPECT_EQ(maxSum.endIdx, 5);
 }
 
 
@@ -205,6 +243,12 @@ void notEnterTest()
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
+
+    checkHomes(fileInputName, maxSum, 2);
+    EXPECT_EQ(maxSum.maxSum, -1);
+    EXPECT_EQ(maxSum.startIdx, -1);
+    EXPECT_EQ(maxSum.endIdx, -1);
+
 }
 
 void altTest(void)
@@ -221,6 +265,11 @@ void altTest(void)
     EXPECT_EQ(maxSum.maxSum, 9);
     EXPECT_EQ(maxSum.startIdx, 8);
     EXPECT_EQ(maxSum.endIdx, 10);
+
+    checkHomes(fileInputName, maxSum, 2);
+    EXPECT_EQ(maxSum.maxSum, 9);
+    EXPECT_EQ(maxSum.startIdx, 8);
+    EXPECT_EQ(maxSum.endIdx, 10);
 }
 
 void zeroTest(void)
@@ -234,6 +283,11 @@ void zeroTest(void)
     EXPECT_EQ(maxSum.endIdx, 5);
 
     checkHomes(fileInputName, maxSum, 1);
+    EXPECT_EQ(maxSum.maxSum, 0);
+    EXPECT_EQ(maxSum.startIdx, 5);
+    EXPECT_EQ(maxSum.endIdx, 5);
+
+    checkHomes(fileInputName, maxSum, 2);
     EXPECT_EQ(maxSum.maxSum, 0);
     EXPECT_EQ(maxSum.startIdx, 5);
     EXPECT_EQ(maxSum.endIdx, 5);
