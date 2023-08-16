@@ -27,6 +27,7 @@ struct MaxSum
         // Required when we are reducing results in Parallel Scan and
         // there are two threads that found the sequence with the maximal number of candies,
         // and one is unitialized, so we distinguish between one that finished and one that did not.
+        // Also required due to the condition specified in the problem.
         if (maxSum == other.maxSum)
         {
             return startIdx > other.startIdx;
@@ -57,7 +58,6 @@ void readFile(int32_t& nCandies, std::vector<int32_t>& vHomeCandies, const std::
     fInput.close();
 }
 
-// TODO: Compute prefix sums using parallelization.
 void computePrefixSums(const std::vector<int32_t>& vHomeCandies, std::vector<int32_t>& vPrefSum)
 {
     const uint32_t nHomes = vHomeCandies.size();
@@ -83,7 +83,7 @@ void computePrefixSumsParallel(const std::vector<int32_t>& vHomeCandies, std::ve
     omp_set_num_threads(numThreads);
     vSums.resize(numThreads);
 
-    #pragma  omp parallel for
+    #pragma  omp parallel for default(none) shared(nHomes, vSums, vHomeCandies, vPrefSum)
     for (uint32_t idx = 0; idx < nHomes; idx++)
     {
         uint32_t threadId = omp_get_thread_num();
@@ -96,7 +96,7 @@ void computePrefixSumsParallel(const std::vector<int32_t>& vHomeCandies, std::ve
         vSums[idx] += vSums[idx-1];
     }
 
-    #pragma  omp parallel for
+    #pragma  omp parallel for default(none) shared(nHomes, vSums, vHomeCandies, vPrefSum)
     for (uint32_t idx = 0; idx < nHomes; idx++)
     {
         uint32_t threadId = omp_get_thread_num();
@@ -148,7 +148,7 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
     omp_set_num_threads(numThreads);
     vMaxSums.resize(numThreads);
 
-    #pragma  omp parallel for
+    #pragma  omp parallel for default(none) shared(nHomes, found, vPrefSum, nCandies, vMaxSums)
     for (int32_t idx = 1; idx <= nHomes; idx ++)
     {
         if (!found)
@@ -279,17 +279,17 @@ void notEnterTest()
     const std::string fileInputName = "tests/input_not_enter.txt";
     MaxSum maxSum;
     maxSum = {-1, -1, -1};
-    checkHomes(fileInputName, maxSum, 0, 1);
+    checkHomes(fileInputName, maxSum, 0, 0);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
 
-    checkHomes(fileInputName, maxSum, 1, 1);
+    checkHomes(fileInputName, maxSum, 1, 0);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
 
-    checkHomes(fileInputName, maxSum, 2, 1);
+    checkHomes(fileInputName, maxSum, 2, 0);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
@@ -338,6 +338,27 @@ void zeroTest(void)
     EXPECT_EQ(maxSum.endIdx, 5);
 }
 
+void zeroNotTest(void)
+{
+    const std::string fileInputName = "tests/input_zero_not.txt";
+    MaxSum maxSum;
+    maxSum = {-1, -1, -1};
+    checkHomes(fileInputName, maxSum, 0, 1);
+    EXPECT_EQ(maxSum.maxSum, -1);
+    EXPECT_EQ(maxSum.startIdx, -1);
+    EXPECT_EQ(maxSum.endIdx, -1);
+
+    checkHomes(fileInputName, maxSum, 1, 1);
+    EXPECT_EQ(maxSum.maxSum, -1);
+    EXPECT_EQ(maxSum.startIdx, -1);
+    EXPECT_EQ(maxSum.endIdx, -1);
+
+    checkHomes(fileInputName, maxSum, 2, 1);
+    EXPECT_EQ(maxSum.maxSum, -1);
+    EXPECT_EQ(maxSum.startIdx, -1);
+    EXPECT_EQ(maxSum.endIdx, -1);
+}
+
 
 void runTests()
 {
@@ -345,6 +366,7 @@ void runTests()
     notEnterTest();
     altTest();
     zeroTest();
+    zeroNotTest();
 }
 
 int main()
