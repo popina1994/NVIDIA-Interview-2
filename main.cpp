@@ -20,7 +20,6 @@ struct MaxSum
     {
     }
 
-    //
     // Required for the reduction step in the parallelization.
     bool operator<(MaxSum& other) const
     {
@@ -36,6 +35,12 @@ struct MaxSum
     }
 };
 
+/**
+ * A function that reads specification from the file named fileInputFrom.
+ * @param nCandies returns the maximal number of candies a user can take.
+ * @param vHomeCandies returns the vector of candies each home gives in sequential order
+ * @param fileInputName passes the file name.
+ */
 void readFile(int32_t& nCandies, std::vector<int32_t>& vHomeCandies, const std::string& fileInputName)
 {
     int32_t nHomes;
@@ -57,7 +62,12 @@ void readFile(int32_t& nCandies, std::vector<int32_t>& vHomeCandies, const std::
     }
     fInput.close();
 }
-
+/**
+ * The computation of a prefix sums of number of candies each home gives starting from 0 up to that home.
+ * We assume home 0 gives 0 for the sake of brevity of the code.
+ * @param vHomeCandies the vector of candies each home gives in sequential order
+ * @param vPrefSum returns the vector that contains the prefix sum.
+ */
 void computePrefixSums(const std::vector<int32_t>& vHomeCandies, std::vector<int32_t>& vPrefSum)
 {
     const uint32_t nHomes = vHomeCandies.size();
@@ -71,6 +81,20 @@ void computePrefixSums(const std::vector<int32_t>& vHomeCandies, std::vector<int
     }
 }
 
+/**
+ * Parallelized computation prefix sums of number of candies each home gives starting from 0 up to that home.
+ * The method computes by exploiting the rule that
+ * prefSum(start, end) = prefSum(start, mid) + prefSum(mid+1, end) where prefSum(i, j) denotes a sum of the candies
+ * starting at the home i and sequentially all the way up to end.
+ * 1) First we divide homes in chunks and compute prefSum(start, end) for each of the chunks by using classical
+ * method to compute prefixSum.
+ * 2) Then we add these computed sums to the next chunk incrementally.
+ * Time complexity is O(n / k) where k is a number rof processors, although the method is limited by the memory
+ * bandwidth.
+ * We assume home 0 gives 0 for the sake of brevity of the code.
+ * @param vHomeCandies the vector of candies each home gives in sequential order
+ * @param vPrefSum returns the vector that contains the prefix sum.
+ */
 void computePrefixSumsParallel(const std::vector<int32_t>& vHomeCandies, std::vector<int32_t>& vPrefSum)
 {
     const uint32_t nHomes = vHomeCandies.size();
@@ -113,11 +137,12 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
 {
     const uint32_t nHomes = vHomeCandies.size();
     maxSum = MaxSum();
+    auto itBegin = vPrefSum.begin();
 
     for (int32_t idx = 1; idx <= nHomes; idx ++)
     {
         int32_t diff = std::max(vPrefSum[idx] - nCandies, 0);
-        const auto itBegin = vPrefSum.begin();
+
         const auto itEnd = vPrefSum.begin() + idx;
         auto itSearch = std::lower_bound(itBegin,itEnd, diff);
         if (itSearch != itEnd)
@@ -126,10 +151,12 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
             if (curMaxSum > maxSum.maxSum)
             {
                 maxSum.maxSum = curMaxSum;
-                maxSum.startIdx = std::distance(itBegin, itSearch) + 1;
+                maxSum.startIdx = std::distance(vPrefSum.begin(), itSearch) + 1;
                 maxSum.endIdx = idx;
             }
+            itBegin = itSearch;
         }
+
         if (maxSum.maxSum == nCandies)
         {
             break;
@@ -143,10 +170,14 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
     const uint32_t nHomes = vHomeCandies.size();
     bool found = false;
     std::vector<MaxSum> vMaxSums;
+    std::vector<std::vector<int32_t >::iterator > vBeginIterators;
 
     uint32_t numThreads = omp_get_num_procs();
     omp_set_num_threads(numThreads);
     vMaxSums.resize(numThreads);
+    vBeginIterators.resize(numThreads);
+
+    // TODO: Add initialization for begin iterators.
 
     #pragma  omp parallel for default(none) shared(nHomes, found, vPrefSum, nCandies, vMaxSums)
     for (int32_t idx = 1; idx <= nHomes; idx ++)
@@ -256,7 +287,7 @@ void defaultTest()
 {
     const std::string fileInputName = "tests/input_default.txt";
     MaxSum maxSum;
-    maxSum = {-1, -1, -1};
+
     checkHomes(fileInputName, maxSum, 0, 1);
     EXPECT_EQ(maxSum.maxSum, 10);
     EXPECT_EQ(maxSum.startIdx, 2);
@@ -278,18 +309,18 @@ void notEnterTest()
 {
     const std::string fileInputName = "tests/input_not_enter.txt";
     MaxSum maxSum;
-    maxSum = {-1, -1, -1};
-    checkHomes(fileInputName, maxSum, 0, 0);
+
+    checkHomes(fileInputName, maxSum, 0, 1);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
 
-    checkHomes(fileInputName, maxSum, 1, 0);
+    checkHomes(fileInputName, maxSum, 1, 1);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
 
-    checkHomes(fileInputName, maxSum, 2, 0);
+    checkHomes(fileInputName, maxSum, 2, 1);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
@@ -300,7 +331,7 @@ void altTest(void)
 {
     const std::string fileInputName = "tests/input_alt.txt";
     MaxSum maxSum;
-    maxSum = {-1, -1, -1};
+
     checkHomes(fileInputName, maxSum, 0, 1);
     EXPECT_EQ(maxSum.maxSum, 9);
     EXPECT_EQ(maxSum.startIdx, 8);
@@ -321,7 +352,7 @@ void zeroTest(void)
 {
     const std::string fileInputName = "tests/input_zero.txt";
     MaxSum maxSum;
-    maxSum = {-1, -1, -1};
+
     checkHomes(fileInputName, maxSum, 0, 1);
     EXPECT_EQ(maxSum.maxSum, 0);
     EXPECT_EQ(maxSum.startIdx, 5);
@@ -342,7 +373,7 @@ void zeroNotTest(void)
 {
     const std::string fileInputName = "tests/input_zero_not.txt";
     MaxSum maxSum;
-    maxSum = {-1, -1, -1};
+
     checkHomes(fileInputName, maxSum, 0, 1);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
