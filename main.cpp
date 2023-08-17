@@ -107,7 +107,7 @@ void computePrefixSumsParallel(const std::vector<int32_t>& vHomeCandies, std::ve
     omp_set_num_threads(numThreads);
     vSums.resize(numThreads);
 
-    #pragma  omp parallel for default(none) shared(nHomes, vSums, vHomeCandies, vPrefSum)
+    #pragma  omp parallel  for schedule(static) default(none) shared(nHomes, vSums, vHomeCandies, vPrefSum)
     for (uint32_t idx = 0; idx < nHomes; idx++)
     {
         uint32_t threadId = omp_get_thread_num();
@@ -120,7 +120,7 @@ void computePrefixSumsParallel(const std::vector<int32_t>& vHomeCandies, std::ve
         vSums[idx] += vSums[idx-1];
     }
 
-    #pragma  omp parallel for default(none) shared(nHomes, vSums, vHomeCandies, vPrefSum)
+    #pragma  omp parallel  for schedule(static) default(none) shared(nHomes, vSums, vHomeCandies, vPrefSum)
     for (uint32_t idx = 0; idx < nHomes; idx++)
     {
         uint32_t threadId = omp_get_thread_num();
@@ -183,7 +183,7 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, std::v
     }
     // TODO: Add initialization for begin iterators.
 
-    #pragma  omp parallel for default(none) shared(nHomes, found, vPrefSum, nCandies, vMaxSums, vBeginIterators)
+    #pragma  omp parallel  for schedule(static) default(none) shared(nHomes, found, vPrefSum, nCandies, vMaxSums, vBeginIterators)
     for (int32_t idx = 1; idx <= nHomes; idx ++)
     {
         if (!found)
