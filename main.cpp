@@ -188,9 +188,6 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
  * @param vPrefSum the vector that contains the prefix sum.
  * @param nCandies the maximum number of candies each child can get
  * @param maxSum returns a maximum number of candies that a child can get alongside the starting idx and end idx.
- * @note: Potential optimization is that instead of binary search, we use binary search only at the beginning and
- * then just to move starting iterator linearly using windows approach similar to the next task.
- * This should reduce the time complexity from n log n / k to n / k.
  */
 void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, std::vector<int32_t>& vPrefSum, int32_t& nCandies,
                                   MaxSum& maxSum)
@@ -198,7 +195,6 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, std::v
     const uint32_t nHomes = vHomeCandies.size();
     bool found = false;
     std::vector<MaxSum> vMaxSums;
-    std::vector<bool> itInitialized;
     std::vector<std::vector<int32_t >::iterator > vBeginIterators;
 
     uint32_t numThreads = omp_get_num_procs();
