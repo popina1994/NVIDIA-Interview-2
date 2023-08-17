@@ -164,29 +164,33 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
     }
 }
 
-void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const std::vector<int32_t>& vPrefSum, int32_t& nCandies,
+void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, std::vector<int32_t>& vPrefSum, int32_t& nCandies,
                                   MaxSum& maxSum)
 {
     const uint32_t nHomes = vHomeCandies.size();
     bool found = false;
     std::vector<MaxSum> vMaxSums;
+    std::vector<bool> itInitialized;
     std::vector<std::vector<int32_t >::iterator > vBeginIterators;
 
     uint32_t numThreads = omp_get_num_procs();
     omp_set_num_threads(numThreads);
     vMaxSums.resize(numThreads);
     vBeginIterators.resize(numThreads);
-
+    for (auto& it: vBeginIterators)
+    {
+        it = vPrefSum.begin();
+    }
     // TODO: Add initialization for begin iterators.
 
-    #pragma  omp parallel for default(none) shared(nHomes, found, vPrefSum, nCandies, vMaxSums)
+    #pragma  omp parallel for default(none) shared(nHomes, found, vPrefSum, nCandies, vMaxSums, vBeginIterators)
     for (int32_t idx = 1; idx <= nHomes; idx ++)
     {
         if (!found)
         {
             uint32_t threadId = omp_get_thread_num();
             int32_t diff = std::max(vPrefSum[idx] - nCandies, 0);
-            const auto itBegin = vPrefSum.begin();
+            const auto itBegin = vBeginIterators[threadId];
             const auto itEnd = vPrefSum.begin() + idx;
             auto itSearch = std::lower_bound(itBegin,itEnd, diff);
             if (itSearch != itEnd)
@@ -195,9 +199,10 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, const 
                 if (curMaxSum > vMaxSums[threadId].maxSum)
                 {
                     vMaxSums[threadId].maxSum = curMaxSum;
-                    vMaxSums[threadId].startIdx = std::distance(itBegin, itSearch) + 1;
+                    vMaxSums[threadId].startIdx = std::distance(vPrefSum.begin(), itSearch) + 1;
                     vMaxSums[threadId].endIdx = idx;
                 }
+                vBeginIterators[threadId] = itSearch;
             }
             if ((threadId == 0) && (vMaxSums[threadId].maxSum == nCandies))
             {
