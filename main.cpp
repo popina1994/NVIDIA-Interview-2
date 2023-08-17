@@ -209,7 +209,6 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, std::v
     {
         it = vPrefSum.begin();
     }
-    // TODO: Add initialization for begin iterators.
 
     #pragma  omp parallel  for schedule(static) default(none) shared(nHomes, found, vPrefSum, nCandies, vMaxSums, vBeginIterators)
     for (int32_t idx = 1; idx <= nHomes; idx ++)
@@ -286,6 +285,65 @@ void computeMaxSequenceWindowApproach(const std::vector<int32_t>& vHomeCandies, 
 }
 
 
+/**
+* A parallelized window search where we keep bounds of window which currently contains  the starting home
+        * that maximizes the number of candies one child can get for the currently ending chome.
+* The time complexity of this approach is O(n) since the beginning iterator can iterate O(n) times, but
+ * in general case it can bring improvements up to O(n / k) where k is a number of threads.
+*
+* @param vHomeCandies the vector of candies each home gives in sequential order
+* @param vPrefSum the vector that contains the prefix sum.
+* @param nCandies the maximum number of candies each child can get
+* @param maxSum returns a maximum number of candies that a child can get alongside the starting idx and end idx.
+*/
+void computeMaxSequenceWindowApproachParallel(const std::vector<int32_t>& vHomeCandies, const std::vector<int32_t>& vPrefSum, int32_t& nCandies,
+                                      MaxSum& maxSum)
+{
+    const uint32_t nHomes = vHomeCandies.size();
+    std::vector<MaxSum> vMaxSums;
+    std::vector<bool> vInit;
+
+    std::vector<int32_t > vStartIdx;
+    uint32_t numThreads = omp_get_num_procs();
+    omp_set_num_threads(numThreads);
+    vStartIdx.resize(numThreads);
+    vMaxSums.resize(numThreads);
+    vInit.resize(numThreads);
+
+    #pragma  omp parallel  for schedule(static) default(none) shared(nHomes, vPrefSum, nCandies, vMaxSums, vInit, vStartIdx)
+    for (int32_t endIdx = 1; endIdx <= nHomes; endIdx ++)
+    {
+        uint32_t threadId = omp_get_thread_num();
+        if (!vInit[threadId])
+        {
+            int32_t diff = std::max(vPrefSum[endIdx] - nCandies, 0);;
+            const auto itEnd = vPrefSum.begin() + endIdx;
+            auto itSearch = std::lower_bound(vPrefSum.begin(),itEnd, diff);
+            vStartIdx[threadId] = std::distance(vPrefSum.begin(), itSearch);
+            vInit[threadId] = true;
+        }
+        while (vPrefSum[endIdx]  - vPrefSum[vStartIdx[threadId]] > nCandies)
+        {
+            vStartIdx[threadId]++;
+        }
+        if (endIdx == vStartIdx[threadId])
+        {
+            continue;
+        }
+        int32_t curMaxSum = vPrefSum[endIdx] - vPrefSum[vStartIdx[threadId]];
+        if (curMaxSum > vMaxSums[threadId].maxSum)
+        {
+            vMaxSums[threadId].maxSum = curMaxSum;
+            vMaxSums[threadId].startIdx = vStartIdx[threadId]+1;
+            vMaxSums[threadId].endIdx = endIdx;
+        }
+    }
+    auto itSol = std::max_element(vMaxSums.begin(), vMaxSums.end());
+    maxSum = *itSol;
+}
+
+
+
 void checkHomes(const std::string& fileInputName, MaxSum& maxSum, int32_t implAlg, int32_t prefSumImpl)
 {
     int32_t nCandies;
@@ -314,6 +372,11 @@ void checkHomes(const std::string& fileInputName, MaxSum& maxSum, int32_t implAl
     {
         computeMaxSequenceWindowApproach(vHomeCandies, vPrefSum, nCandies, maxSum);
     }
+    else if (implAlg == 3)
+    {
+        computeMaxSequenceWindowApproachParallel(vHomeCandies, vPrefSum, nCandies, maxSum);
+    }
+
 
     if (maxSum.maxSum != -1)
     {
@@ -345,6 +408,11 @@ void defaultTest()
     EXPECT_EQ(maxSum.maxSum, 10);
     EXPECT_EQ(maxSum.startIdx, 2);
     EXPECT_EQ(maxSum.endIdx, 5);
+
+    checkHomes(fileInputName, maxSum, 3, 1);
+    EXPECT_EQ(maxSum.maxSum, 10);
+    EXPECT_EQ(maxSum.startIdx, 2);
+    EXPECT_EQ(maxSum.endIdx, 5);
 }
 
 
@@ -364,6 +432,11 @@ void notEnterTest()
     EXPECT_EQ(maxSum.endIdx, -1);
 
     checkHomes(fileInputName, maxSum, 2, 1);
+    EXPECT_EQ(maxSum.maxSum, -1);
+    EXPECT_EQ(maxSum.startIdx, -1);
+    EXPECT_EQ(maxSum.endIdx, -1);
+
+    checkHomes(fileInputName, maxSum, 3, 1);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
@@ -389,6 +462,11 @@ void altTest(void)
     EXPECT_EQ(maxSum.maxSum, 9);
     EXPECT_EQ(maxSum.startIdx, 8);
     EXPECT_EQ(maxSum.endIdx, 10);
+
+    checkHomes(fileInputName, maxSum, 3, 1);
+    EXPECT_EQ(maxSum.maxSum, 9);
+    EXPECT_EQ(maxSum.startIdx, 8);
+    EXPECT_EQ(maxSum.endIdx, 10);
 }
 
 void zeroTest(void)
@@ -410,6 +488,11 @@ void zeroTest(void)
     EXPECT_EQ(maxSum.maxSum, 0);
     EXPECT_EQ(maxSum.startIdx, 5);
     EXPECT_EQ(maxSum.endIdx, 5);
+
+    checkHomes(fileInputName, maxSum, 3, 1);
+    EXPECT_EQ(maxSum.maxSum, 0);
+    EXPECT_EQ(maxSum.startIdx, 5);
+    EXPECT_EQ(maxSum.endIdx, 5);
 }
 
 void zeroNotTest(void)
@@ -428,6 +511,11 @@ void zeroNotTest(void)
     EXPECT_EQ(maxSum.endIdx, -1);
 
     checkHomes(fileInputName, maxSum, 2, 1);
+    EXPECT_EQ(maxSum.maxSum, -1);
+    EXPECT_EQ(maxSum.startIdx, -1);
+    EXPECT_EQ(maxSum.endIdx, -1);
+
+    checkHomes(fileInputName, maxSum, 3, 1);
     EXPECT_EQ(maxSum.maxSum, -1);
     EXPECT_EQ(maxSum.startIdx, -1);
     EXPECT_EQ(maxSum.endIdx, -1);
