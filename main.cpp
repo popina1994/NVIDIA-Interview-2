@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <omp.h>
 #include <cassert>
+#include <chrono>
 
 #define EXPECT_EQ(A, B) assert(A == B);
 
@@ -21,7 +22,7 @@ struct MaxSum
     }
 
     // Required for the reduction step in the parallelization.
-    bool operator<(MaxSum& other) const
+    bool operator<(const MaxSum& other) const
     {
         // Required when we are reducing results in Parallel Scan and
         // there are two threads that found the sequence with the maximal number of candies,
@@ -131,7 +132,16 @@ void computePrefixSumsParallel(const std::vector<int32_t>& vHomeCandies, std::ve
     }
 }
 
-
+/**
+ * A classical sequential search where for each home we check what would be the starting home
+ * that maximizes the number of candies one child can get. We use binary search for this
+ * to reduce the time complexity of the algorithm from O(n^2) to O(nlogn).
+ *
+ * @param vHomeCandies the vector of candies each home gives in sequential order
+ * @param vPrefSum the vector that contains the prefix sum.
+ * @param nCandies the maximum number of candies each child can get
+ * @param maxSum returns a maximum number of candies that a child can get alongside the starting idx and end idx.
+ */
 void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, const std::vector<int32_t>& vPrefSum, int32_t& nCandies,
                    MaxSum& maxSum)
 {
@@ -148,6 +158,9 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
         if (itSearch != itEnd)
         {
             int32_t curMaxSum = vPrefSum[idx] - *itSearch;
+            // If the curMaxSum == maxSum.maxSum, the start Idx will be for greater or equal to
+            // the startIdx of the currently found maxSum since all elements are positive.
+            // thus we should not consider this case.
             if (curMaxSum > maxSum.maxSum)
             {
                 maxSum.maxSum = curMaxSum;
@@ -164,6 +177,21 @@ void computeMaxSequenceSequential(const std::vector<int32_t>& vHomeCandies, cons
     }
 }
 
+/**
+ * A classical parallelized sequential search where for each home we check what would be the starting home
+ * that maximizes the number of candies one child can get. We use binary search for this
+ * to reduce the time complexity of the algorithm from O(n^2 / k) to O(nlogn / k), where k is
+ * a number of threads. For a parallelization, we use map reduce where in the reduction step we use stl algorithm
+ * to fin maximum of already computed sublocal maximums.
+ *
+ * @param vHomeCandies the vector of candies each home gives in sequential order
+ * @param vPrefSum the vector that contains the prefix sum.
+ * @param nCandies the maximum number of candies each child can get
+ * @param maxSum returns a maximum number of candies that a child can get alongside the starting idx and end idx.
+ * @note: Potential optimization is that instead of binary search, we use binary search only at the beginning and
+ * then just to move starting iterator linearly using windows approach similar to the next task.
+ * This should reduce the time complexity from n log n / k to n / k.
+ */
 void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, std::vector<int32_t>& vPrefSum, int32_t& nCandies,
                                   MaxSum& maxSum)
 {
@@ -216,6 +244,16 @@ void computeMaxSequenceParallel(const std::vector<int32_t>& vHomeCandies, std::v
 }
 
 
+/**
+ * A window search where we keep bounds of window which currently contains  the starting home
+ * that maximizes the number of candies one child can get for the currently ending chome.
+ * The time complexity of this approach is O(n) since each iterator can move at most n times.
+ *
+ * @param vHomeCandies the vector of candies each home gives in sequential order
+ * @param vPrefSum the vector that contains the prefix sum.
+ * @param nCandies the maximum number of candies each child can get
+ * @param maxSum returns a maximum number of candies that a child can get alongside the starting idx and end idx.
+ */
 void computeMaxSequenceWindowApproach(const std::vector<int32_t>& vHomeCandies, const std::vector<int32_t>& vPrefSum, int32_t& nCandies,
                                   MaxSum& maxSum)
 {
@@ -408,5 +446,7 @@ void runTests()
 int main()
 {
     runTests();
+    //MaxSum maxSum;
+    //checkHomes("input.txt", maxSum, 1, 1);
     return 0;
 }
